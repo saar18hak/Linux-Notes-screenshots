@@ -1,0 +1,61 @@
+On server4:  (ssh to 10.0.0.50 from server1)
+
+dnf list bind
+dnf install bind -y
+vi /etc/named.conf
+  CHANGE IP on "listen on " line from "127.0.0.1" to "10.0.0.50" 
+  CHANGE value on "Allow query" line from "localhost" to "any" 
+
+  At he end of the file, add
+  zone "rst.com" IN {
+	type master;
+	file "rst.com.zone";
+  };
+
+save the file and exit.
+
+vi /var/named/rst.com.zone
+  $TTL 5m
+  @		IN		SOA		dns.rst.com.   root.dns.rst.com.  (
+				1
+				1h
+				15m
+				1d
+				5m )
+  @		IN		NS		dns.rst.com.
+  dns		IN		A		10.0.0.50
+  dns		IN		AAAA		10::50
+  server1	IN		A		10.0.0.100
+  server2	IN		A		10.0.0.111
+  server2	IN		AAAA		10::111
+  server3	IN		A		10.0.0.112
+  server3	IN		AAAA		10::112
+
+save the file and exit.
+
+systemctl restart named
+systemctl enable --now named
+firewall-cmd --permanent --add-service=dns
+firewall-cmd --reload
+
+=====================================================================================
+
+On Server2 and server3:
+
+  nmcli con mod eth0 ipv4.dns 10.0.0.50
+  nmcli con reload
+  nmcli con down eth0 ; nmcli con up eth0
+  cat /etc/resolv.conf
+  dnf install bind-utils -y
+  nslookup server2.rst.com
+
+=====================================================================================
+
+On Server1:
+
+  echo "10.0.0.111	server2.rst.com" >> /etc/hosts
+  echo "10.0.0.112	server3.rst.com" >> /etc/hosts
+  echo "10.0.0.50	dns.rst.com" >> /etc/hosts
+  echo "10::111		server2.rst.com" >> /etc/hosts
+  echo "10::112		server3.rst.com" >> /etc/hosts
+  echo "10::50		dns.rst.com" >> /etc/hosts
